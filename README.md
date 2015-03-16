@@ -1,5 +1,6 @@
 # sproto_dump
 parse sproto file `.sproto` to binary file `.spb` or c# code `.cs`.
+
 usage is as follows:
 ```
   usage: lua sprotodump.lua [[<out_option> <out>] ...] <option> <sproto_file ...>
