@@ -1,5 +1,6 @@
 local lpeg = require "lpeg"
 local table = require "table"
+local print_r = require "print_r"
 
 local P = lpeg.P
 local S = lpeg.S
@@ -22,9 +23,26 @@ local function count_lines(_,pos, parser_state)
 end
 
 
-local function highlight(s)
-	return string.format("\x1b[1;31m%s\x1b[0m", s)
+local color = {
+	red = 31,
+	green = 32,
+	blue = 36,
+	yellow = 33,
+	other = 37
+}
+local function highlight(s, c)
+	c = c or "red"
+	return string.format("\x1b[1;%dm%s\x1b[0m", color[c], tostring(s))
 end
+
+local function highlight_type(s)
+	return highlight(s, "green")
+end
+
+local function highlight_tag(s)
+	return highlight(s, "yellow")
+end
+
 
 local exception = Cmt( Carg(1) , function ( _ , pos, parser_state)
 	error(highlight(string.format("syntax error at [%s] line (%d)", parser_state.file or "", parser_state.line)))
@@ -83,7 +101,7 @@ local proto = blank0 * typedef * blank0
 local convert = {}
 
 function convert.protocol(all, obj, build)
-	local result = { tag = obj[2], meta=obj.meta }
+	local result = { tag = obj[2], meta=obj.meta, name = obj[1]}
 	for _, p in ipairs(obj[3]) do
 		assert(result[p[1]] == nil)
 		local typename = p[2]
@@ -108,12 +126,16 @@ function convert.type(all, obj)
 		if f.type == "field" then
 			local name = f[1]
 			if names[name] then
-				error(string.format("redefine %s in type %s"..meta_info, name, typename))
+				error(string.format("redefine %s in type %s"..meta_info, 
+					highlight_type(name), 
+					highlight_type(typename)))
 			end
 			names[name] = true
 			local tag = f[2]
 			if tags[tag] then
-				error(string.format("redefine tag %d in type %s"..meta_info, tag, typename))
+				error(string.format("redefine tag %s in type %s"..meta_info, 
+					highlight_tag(tag),
+					highlight_type(typename)))
 			end
 			tags[tag] = true
 			local field = { name = name, tag = tag }
@@ -134,7 +156,7 @@ function convert.type(all, obj)
 			assert(f.type == "type")	-- nest type
 			local nesttypename = typename .. "." .. f[1]
 			f[1] = nesttypename
-			assert(all.type[nesttypename] == nil, "redefined " .. nesttypename..meta_info)
+			assert(all.type[nesttypename] == nil, "redefined " ..highlight_type(nesttypename)..meta_info)
 			local v = convert.type(all, f)
 			v.meta = meta
 			all.type[nesttypename] = v
@@ -152,7 +174,7 @@ local function adjust(r, build)
 		local build_set = build[obj.type]
 		local name = obj[1]
 		local meta_info = tostring(obj.meta)
-		assert(set[name] == nil and build_set[name] == nil, "redefined "..name..meta_info)
+		assert(set[name] == nil and build_set[name] == nil, "redefined "..highlight_type(name)..meta_info)
 		set[name] = convert[obj.type](result,obj, build)
 	end
 
@@ -182,19 +204,39 @@ local function checktype(types, ptype, t)
 	end
 end
 
+
+local function checkprotocol(r)
+	local map = {}
+	for protocol_name, v in pairs(r.protocol) do
+		local tag = v.tag
+		local p = map[tag]
+		if p then
+			error(string.format("redefined protocol tag %s of `%s` and `%s` %s.", 
+				highlight_tag(tag), 
+				highlight_type(p.name),
+				highlight_type(protocol_name), 
+				tostring(v.meta)))
+		end
+		map[tag] = v
+	end
+end
+
+
 local function flattypename(r)
 	for typename, t in pairs(r.type) do
 		for _, f in ipairs(t) do
 			local ftype = f.typename
 			local fullname = checktype(r.type, typename, ftype)
 			if fullname == nil then
-				error(string.format("Undefined type %s in type %s"..tostring(f.meta), ftype, typename))
+				error(string.format("Undefined type %s in type %s"..tostring(f.meta), 
+					highlight_type(ftype), 
+					highlight_type(typename)))
 			end
 			f.typename = fullname
 
 			if f.array and f.key then
 				local key = f.key
-				local reason = "Invalid map index: "..key..tostring(f.meta)
+				local reason = "Invalid map index: "..highlight_tag(key)..tostring(f.meta)
 				local vtype=r.type[fullname]
 				for _,v in ipairs(vtype) do
 					if v.name == key and buildin_types[v.typename] then
@@ -253,6 +295,7 @@ local function gen_trunk(trunk_list)
 	end
 
 	flattypename(build)
+	checkprotocol(build)
 	return ret, build
 end
 
