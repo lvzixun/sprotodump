@@ -89,7 +89,7 @@ local typedef = P {
 	FIELD = namedpat("field", (name * blanks * tag * blank0 * ":" * blank0 * (C"*")^0 * typename * mainkey^0)),
 	STRUCT = P"{" * multipat(V"FIELD" + V"TYPE") * P"}",
 	TYPE = namedpat("type", P"." * name * blank0 * V"STRUCT" ),
-	SUBPROTO = Ct((C"request" + C"response") * blanks * (name + V"STRUCT")),
+	SUBPROTO = Ct((C"request" + C"response") * blanks * (typename + V"STRUCT")),
 	PROTOCOL = namedpat("protocol", name * blanks * tag * blank0 * P"{" * multipat(V"SUBPROTO") * P"}"),
 	ALL = multipat(V"TYPE" + V"PROTOCOL"),
 }
@@ -206,14 +206,31 @@ end
 
 local function checkprotocol(r)
 	local map = {}
+	local type = r.type
 	for protocol_name, v in pairs(r.protocol) do
 		local tag = v.tag
+		local request = v.request
+		local response = v.response
 		local p = map[tag]
 		if p then
-			error(string.format("redefined protocol tag %s of `%s` and `%s` %s.", 
+			error(string.format("redefined protocol tag %s of %s and %s %s", 
 				highlight_tag(tag), 
 				highlight_type(p.name),
 				highlight_type(protocol_name), 
+				tostring(v.meta)))
+		end
+
+		if request and not type[request] then
+			error(string.format("Undefined request type %s in protocol %s %s",
+				highlight_type(request),
+				highlight_type(protocol_name),
+				tostring(v.meta)))
+		end
+
+		if response and not type[response] then
+			error(string.format("Undefined response type %s in protocol %s",
+				highlight_type(response),
+				highlight_type(protocol_name),
 				tostring(v.meta)))
 		end
 		map[tag] = v
