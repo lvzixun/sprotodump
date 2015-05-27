@@ -3,16 +3,20 @@ local spb = require "sprotodump_spb"
 local cSharp = require "sprotodump_cSharp"
 
 local README = [[
-usage: lua sprotodump.lua [[<out_option> <out>] ...] <option> <sproto_file ...>
+sprotodump is a simple tool to convert sproto file to spb binary.
 
-  out_option:
-    -d               dump to speciffic dircetory
-    -o               dump to speciffic file
-    -p               set package name(only cSharp code use)
+usage: lua sprotodump.lua <option> <sproto_file1 sproto_file2 ...> [[<out_option> <outfile>] ...] 
 
-  option: 
-    -cs              dump to cSharp code file
-    -spb             dump to binary spb  file]]
+    option: 
+        -cs              dump to cSharp code file
+        -spb             dump to binary spb  file
+
+    out_option:
+        -d               dump to speciffic dircetory
+        -o               dump to speciffic file
+        -p               set package name(only cSharp code use)
+
+  ]]
 
 local function base_name(string_)
   local LUA_DIRSEP = string.sub(package.config,1,1)
