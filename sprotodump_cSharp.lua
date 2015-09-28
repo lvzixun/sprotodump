@@ -1,6 +1,5 @@
 local parse_core = require "sprotoparse_core"
 local buildin_types = parse_core.buildin_types
-local print_r = require "print_r"
 
 local gmatch = string.gmatch
 local tsort = table.sort
@@ -473,11 +472,6 @@ local function parse_ast2all(ast, package, name)
   local type_class = gen_type_class(ast.type)
   local protocol_class = gen_protocol_class(ast.protocol)
   local stream = create_stream()
-
-
-  print("parse_ast2type!!!!!")
-  print_r(type_class)
-  print("-----------------")
 
   stream:write(header)
   stream:write([[// source: ]]..(name or "input").."\n")
