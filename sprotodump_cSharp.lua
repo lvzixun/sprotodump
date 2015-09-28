@@ -1,5 +1,6 @@
 local parse_core = require "sprotoparse_core"
 local buildin_types = parse_core.buildin_types
+local print_r = require "print_r"
 
 local gmatch = string.gmatch
 local tsort = table.sort
@@ -83,13 +84,15 @@ local function type2class(type_name, class_name, sproto_type)
   local class = {
     class_name = class_name,
     type_name = type_name, 
-    max_field_count = _get_max_field_count(sproto_type),
+    max_field_count = sproto_type and _get_max_field_count(sproto_type) or nil,
     sproto_type = sproto_type,
     internal_class = {},
   }
 
   return class
 end
+
+
 
 
 local function gen_protocol_class(ast)
@@ -102,8 +105,35 @@ local function gen_protocol_class(ast)
       response = v.response,
     }
   end
-
   table.sort(ret, function (a, b) return a.name < b.name end)
+
+  local cache = {}
+  local classes = {}
+  for i=1,#ret do
+    local name = ret[i].name
+    local fold = str_split(name, ".")
+
+    local fullname = ""  
+    local per = classes
+    for i,v in ipairs(fold) do
+      if i == 1 then fullname = v
+      else fullname = fullname.."."..v end
+
+      local item = cache[fullname]
+      if not item then
+        item = {}
+        cache[fullname] = item
+        table.insert(per, item)
+      end
+
+      per = item
+      item.name = v
+      item.value = ast[fullname]
+    end
+  end
+
+
+  ret.classes = classes
   return ret
 end
 
@@ -132,7 +162,8 @@ local function gen_type_class(ast)
       else type_name = type_name.."."..class_name end
 
       if not cache[type_name] then
-        local class_info =  type2class(type_name, class_name, ast[k])
+        local sproto_type = ast[type_name]
+        local class_info =  type2class(sproto_type and type_name or nil, class_name, sproto_type)
         cur[#cur+1] = class_info
         cache[type_name] = class_info
       end
@@ -225,77 +256,89 @@ local function dump_class(class_info, stream, deep)
   local internal_class = class_info.internal_class
   local max_field_count = class_info.max_field_count
 
-  stream:write("public class "..class_name.." : SprotoTypeBase {", deep)
-  
-  -- max_field_count
-  deep = deep + 1;
-  stream:write("private static int max_field_count = "..(max_field_count)..";", deep)
+  if sproto_type then
+    stream:write("public class "..class_name.." : SprotoTypeBase {", deep)
+    
+    -- max_field_count
+    deep = deep + 1;
+    stream:write("private static int max_field_count = "..(max_field_count)..";", deep)
 
-  -- internal class
-  stream:write("", deep)
-  for i=1,#internal_class do
-    dump_class(internal_class[i], stream, deep)
-  end
+    -- internal class
+    stream:write("", deep)
+    for i=1,#internal_class do
+      dump_class(internal_class[i], stream, deep)
+    end
 
-  -- property
-  stream:write("", deep)
-  for i=1,#sproto_type do
-    local field = sproto_type[i]
-    local type = _2class_type(field.typename, field.array, field.key)
-    local name = field.name
-    local tag = field.tag
-
-    stream:write(sformat("private %s _%s; // tag %d", type, name, tag), deep)
-    stream:write(sformat("public %s %s {", type, name), deep)
-      stream:write(sformat("get { return _%s; }", name), deep+1)
-      stream:write(sformat("set { base.has_field.set_field (%d, true); _%s = value; }", i-1, name), deep+1)
-    stream:write("}", deep)
-
-    stream:write("public bool Has"..upper_head(name).." {", deep)
-      stream:write(sformat("get { return base.has_field.has_field (%d); }", i-1), deep+1)
-    stream:write("}\n", deep)
-  end
-
-  -- default constructor function
-  stream:write("public "..class_name.." () : base(max_field_count) {}\n", deep)
-
-
-  -- constructor function
-  stream:write("public "..class_name.." (byte[] buffer) : base(max_field_count, buffer) {", deep)
-    stream:write("this.decode ();", deep+1)
-  stream:write("}\n", deep)
-
-
-  -- decode function
-  stream:write("protected override void decode () {", deep)
-    stream:write("int tag = -1;", deep+1)
-    stream:write("while (-1 != (tag = base.deserialize.read_tag ())) {", deep+1)
-      stream:write("switch (tag) {", deep+2)
-      for i=1,#sproto_type do
-        local field = sproto_type[i]
-        _write_read_field(field, stream, deep+2)
-      end
-      stream:write("default:", deep+2)
-        stream:write("base.deserialize.read_unknow_data ();", deep+3)
-        stream:write("break;", deep+3)
-      stream:write("}", deep+2)
-    stream:write("}", deep+1)
-  stream:write("}\n", deep)
-
-
-  -- encode function 
-  stream:write("public override int encode (SprotoStream stream) {", deep)
-    stream:write("base.serialize.open (stream);\n", deep+1)
+    -- property
+    stream:write("", deep)
     for i=1,#sproto_type do
       local field = sproto_type[i]
-      _write_encode_field(field, i-1, stream, deep+1)
+      local type = _2class_type(field.typename, field.array, field.key)
+      local name = field.name
+      local tag = field.tag
+
+      stream:write(sformat("private %s _%s; // tag %d", type, name, tag), deep)
+      stream:write(sformat("public %s %s {", type, name), deep)
+        stream:write(sformat("get { return _%s; }", name), deep+1)
+        stream:write(sformat("set { base.has_field.set_field (%d, true); _%s = value; }", i-1, name), deep+1)
+      stream:write("}", deep)
+
+      stream:write("public bool Has"..upper_head(name).." {", deep)
+        stream:write(sformat("get { return base.has_field.has_field (%d); }", i-1), deep+1)
+      stream:write("}\n", deep)
     end
-    stream:write("return base.serialize.close ();", deep+1);
-  stream:write("}", deep)
+
+    -- default constructor function
+    stream:write("public "..class_name.." () : base(max_field_count) {}\n", deep)
 
 
-  deep = deep - 1;
-  stream:write("}\n\n", deep)
+    -- constructor function
+    stream:write("public "..class_name.." (byte[] buffer) : base(max_field_count, buffer) {", deep)
+      stream:write("this.decode ();", deep+1)
+    stream:write("}\n", deep)
+
+
+    -- decode function
+    stream:write("protected override void decode () {", deep)
+      stream:write("int tag = -1;", deep+1)
+      stream:write("while (-1 != (tag = base.deserialize.read_tag ())) {", deep+1)
+        stream:write("switch (tag) {", deep+2)
+        for i=1,#sproto_type do
+          local field = sproto_type[i]
+          _write_read_field(field, stream, deep+2)
+        end
+        stream:write("default:", deep+2)
+          stream:write("base.deserialize.read_unknow_data ();", deep+3)
+          stream:write("break;", deep+3)
+        stream:write("}", deep+2)
+      stream:write("}", deep+1)
+    stream:write("}\n", deep)
+
+
+    -- encode function 
+    stream:write("public override int encode (SprotoStream stream) {", deep)
+      stream:write("base.serialize.open (stream);\n", deep+1)
+      for i=1,#sproto_type do
+        local field = sproto_type[i]
+        _write_encode_field(field, i-1, stream, deep+1)
+      end
+      stream:write("return base.serialize.close ();", deep+1);
+    stream:write("}", deep)
+
+
+    deep = deep - 1;
+    stream:write("}\n\n", deep)
+
+  else
+    stream:write("public class "..class_name.." {", deep)
+
+    -- internal class
+    stream:write("", deep)
+    for i=1,#internal_class do
+      dump_class(internal_class[i], stream, deep+1)
+    end
+    stream:write("}\n\n", deep)
+  end
 end
 
 
@@ -339,6 +382,24 @@ local function constructor_protocol(class, package, stream, deep)
 end
 
 
+local function dump_protocol_class(class, stream, deep)
+  local name = class.name
+  local value = class.value
+
+  stream:write("public class "..name.." {", deep)
+    if value then
+      assert(#class == 0)
+      stream:write("public const int Tag = "..value.tag..";", deep+1)
+    else
+      for i,v in ipairs(class) do
+        dump_protocol_class(v, stream, deep+1)
+      end
+    end
+  stream:write("}\n", deep)
+end
+
+
+
 local function parse_protocol(class, stream, package)
   if not class or #class == 0 then return end
 
@@ -347,14 +408,8 @@ local function parse_protocol(class, stream, package)
     stream:write("public static  "..class_name.." Instance = new "..class_name.."();", 1)
     constructor_protocol(class, package, stream, 1)
 
-    for i=1,#class do
-      local class_info = class[i]
-      local name = class_info.name
-      local tag = class_info.tag
-
-      stream:write("public class "..name.." {", 1)
-        stream:write("public const int Tag = "..tag..";", 2)
-      stream:write("}\n", 1)
+    for i,v in ipairs(class.classes) do
+      dump_protocol_class(v, stream, 1)
     end
   stream:write("}")
 end
@@ -418,6 +473,11 @@ local function parse_ast2all(ast, package, name)
   local type_class = gen_type_class(ast.type)
   local protocol_class = gen_protocol_class(ast.protocol)
   local stream = create_stream()
+
+
+  print("parse_ast2type!!!!!")
+  print_r(type_class)
+  print("-----------------")
 
   stream:write(header)
   stream:write([[// source: ]]..(name or "input").."\n")
