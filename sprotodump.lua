@@ -5,20 +5,23 @@ local cSharp = require "sprotodump_cSharp"
 local README = [[
 sprotodump is a simple tool to convert sproto file to spb binary.
 
-usage: lua sprotodump.lua <option> <sproto_file1 sproto_file2 ...> [[<out_option> <outfile>] ...] 
+usage: lua sprotodump.lua <option> <sproto_file1 sproto_file2 ...> [[<out_option> <outfile>] ...] [namespace_option]
 
     option: 
         -cs              dump to cSharp code file
         -spb             dump to binary spb  file
 
     out_option:
-        -d               dump to speciffic dircetory
-        -o               dump to speciffic file
-        -p               set package name(only cSharp code use)
+        -d <dircetory>               dump to speciffic dircetory
+        -o <file>                    dump to speciffic file
+        -p <package name>            set package name(only cSharp code use)
 
+    namespace_option:
+        -namespace       add namespace to type and protocol
   ]]
 
-local function base_name(string_)
+
+local function path_basename(string_)
   local LUA_DIRSEP = string.sub(package.config,1,1)
   string_ = string_ or ''
   local basename = string.gsub (string_, '[^'.. LUA_DIRSEP ..']*'.. LUA_DIRSEP ..'', '')
@@ -26,6 +29,12 @@ local function base_name(string_)
   return basename
 end
 
+
+local function file_basename(path)
+  local file = string.gsub(path, "^.*[/\\](.+)$", "%1")
+  local name = string.gsub(file, "^(.+)%..+$", "%1")
+  return name
+end
 
 
 local function read_file(path)
@@ -39,12 +48,12 @@ local function write_file(path, data, mode)
   local handle = io.open(path, mode)
   handle:write(data)
   handle:close()
-  print("dump "..path.." file")
+  print("dump to "..path.." file")
 end
 
 
 local function dump_spb(trunk_list, param)
-  local outfile = param.outfile or param.package and base_name(param.package)..".spb" or "sproto.spb"
+  local outfile = param.outfile or param.package and path_basename(param.package)..".spb" or "sproto.spb"
   outfile = (param.dircetory or "")..outfile
   local _, build = parse_core.gen_trunk(trunk_list)
   local data = spb.parse(build)
@@ -53,8 +62,8 @@ end
 
 
 local function dump_cSharp(trunk_list, param)
-  local package = base_name(param.package or "")
-  local ret, build = parse_core.gen_trunk(trunk_list, package)
+  local package = path_basename(param.package or "")
+  local ret, build = parse_core.gen_trunk(trunk_list)
   local outfile = param.outfile
   local dir = param.dircetory or ""
 
@@ -65,7 +74,7 @@ local function dump_cSharp(trunk_list, param)
     -- dump sprototype
     for i,v in ipairs(ret) do
       local name = param.sproto_file[i]
-      local outcs = base_name(name)..".cs"
+      local outcs = path_basename(name)..".cs"
       local data = cSharp.parse_type(v.type, package, name)
       write_file(dir..outcs, data, "w")
     end
@@ -80,10 +89,11 @@ local function dump_cSharp(trunk_list, param)
 end
 
 
-local function _2trunk_list(sproto_file)
+local function _2trunk_list(sproto_file, namespace)
   local trunk_list = {}
   for i,v in ipairs(sproto_file) do
-    table.insert(trunk_list, {read_file(v), v})
+    namespace = namespace and file_basename(v) or nil
+    table.insert(trunk_list, {read_file(v), v, namespace})
   end
   return trunk_list
 end
@@ -95,6 +105,7 @@ local function _parse_param(...)
     dircetory = false,
     package = false,
     outfile = false,
+    namespace = false,
     sproto_file = {},
     dump_type = false,
   }
@@ -114,6 +125,15 @@ local function _parse_param(...)
     ["-spb"] = true,
   }
 
+  local function read_namespace(idx)
+    local v = param[idx]
+    if v == "-namespace" then
+      idx = idx + 1
+      ret["namespace"] = true
+      return idx
+    end
+    return false
+  end
 
   local function read_out_opt(idx)
     local v1 = param[idx]
@@ -135,7 +155,7 @@ local function _parse_param(...)
       idx = idx + 1
       for i=idx,#param do
         local v = param[i]
-        if v and not out_option[v] and not options[v] then
+        if v and not out_option[v] and v~="-namespace" and not options[v] then
           table.insert(ret.sproto_file, v)
           idx = idx + 1
         elseif idx > begin+1 then
@@ -150,7 +170,7 @@ local function _parse_param(...)
 
   local idx = 1
   while idx <= #param do
-    local v =  read_out_opt(idx) or read_opt(idx) or false
+    local v =  read_out_opt(idx) or read_opt(idx) or read_namespace(idx) or false
     if not v then 
       return false
     end
@@ -167,12 +187,12 @@ local ret = _parse_param(...)
 
 
 local function _spb(param)
-  local trunk_list = _2trunk_list(param.sproto_file)
+  local trunk_list = _2trunk_list(param.sproto_file, param.namespace)
   dump_spb(trunk_list, param)
 end
 
 local function _cs(param)
-  local trunk_list = _2trunk_list(param.sproto_file)
+  local trunk_list = _2trunk_list(param.sproto_file, param.namespace)
   dump_cSharp(trunk_list, param)
 end
 

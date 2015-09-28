@@ -99,15 +99,23 @@ local proto = blank0 * typedef * blank0
 
 local convert = {}
 
-function convert.protocol(all, obj, build)
+function convert.protocol(all, obj, namespace)
 	local result = { tag = obj[2], meta=obj.meta, name = obj[1]}
+	local ex = namespace and namespace.."." or ""
+
 	for _, p in ipairs(obj[3]) do
 		assert(result[p[1]] == nil)
 		local typename = p[2]
-		if type(typename) == "table" then
+		local tt = type(typename)
+		if tt == "table" then
 			local struct = typename
 			typename = obj[1] .. "." .. p[1]
-			all.type[typename] = convert.type(all, { typename, struct }, build)
+			all.type[typename] = convert.type(all, { typename, struct })
+		elseif tt == "string" then
+			local test_name = ex..typename
+			typename = all.type[test_name] and test_name or typename
+		else
+			assert(false)
 		end
 		result[p[1]] = typename
 	end
@@ -165,7 +173,7 @@ function convert.type(all, obj)
 	return result
 end
 
-local function adjust(r, build)
+local function adjust(r, build, namespace)
 	local result = { type = {} , protocol = {} }
 
 	for _, obj in ipairs(r) do
@@ -174,7 +182,7 @@ local function adjust(r, build)
 		local name = obj[1]
 		local meta_info = tostring(obj.meta)
 		assert(set[name] == nil and build_set[name] == nil, "redefined "..highlight_type(name)..meta_info)
-		set[name] = convert[obj.type](result,obj, build)
+		set[name] = convert[obj.type](result, obj, namespace)
 	end
 
 	return result
@@ -270,19 +278,25 @@ local function flattypename(r)
 end
 
 
-local function parser(text,filename, build)
+local function parser(text, filename, namespace, build)
+	local ex = namespace and namespace.."." or ""
 	local state = { file = filename, pos = 0, line = 1}
-	local r = lpeg.match(proto * -1 + exception , text , 1, state )
-	local v = adjust(r, build)
-	return v
-end
+	local r = lpeg.match(proto * -1 + exception , text , 1, state)
 
+	--  set namespace
+	for i,v in ipairs(r) do
+		local name = v[1]
+		v[1] = ex..name
+	end
+
+	return adjust(r, build, namespace)
+end
 
 --[[ 
 	trunk_list parameter format:
 	{
-		{text, name},
-		{text, name},
+		{text, name, namespace},
+		{text, name, namespace},
 		...
 	}
 ]]
@@ -292,7 +306,8 @@ local function gen_trunk(trunk_list)
 	for i,v in ipairs(trunk_list) do
 		local text = v[1]
 		local name = v[2] or "=text"
-		local ast = parser(text, name, build)
+		local namespace = v[3]
+		local ast = parser(text, name, namespace, build)
 		local protocol = ast.protocol
 		local type = ast.type
 
