@@ -1,4 +1,4 @@
-local parse_core = require "sprotoparse_core"
+local parse_core = require "core"
 local buildin_types = parse_core.buildin_types
 
 local packbytes
@@ -263,8 +263,15 @@ local function parse_ast(ast)
   return encodeall(ast)
 end
 
+------------------------------- dump -------------------------------------
+local util = require "util"
 
-return {
-  dump = dump,
-  parse = parse_ast,
-}
+local function main(trunk, build, param)
+  local outfile = param.outfile or param.package and uitl.path_basename(param.package)..".spb" or "sproto.spb"
+  outfile = (param.dircetory or "")..outfile
+  local data = parse_ast(build)
+  util.write_file(outfile, data, "wb")
+end
+
+
+return main

@@ -1,4 +1,4 @@
-local parse_core = require "sprotoparse_core"
+local parse_core = require "core"
 local buildin_types = parse_core.buildin_types
 
 local gmatch = string.gmatch
@@ -484,10 +484,34 @@ local function parse_ast2all(ast, package, name)
 end
 
 
-return {
-  parse_type = parse_ast2type,
-  parse_protocol = parse_ast2protocol,
-  parse_all = parse_ast2all,
-}
 
+------------------------------- dump -------------------------------------
+local util = require "util"
 
+local function main(trunk, build, param)
+  local package = util.path_basename(param.package or "")
+  local outfile = param.outfile
+  local dir = param.dircetory or ""
+
+  if outfile then
+    local data = parse_ast2all(build, package, table.concat(param.sproto_file, " "))
+    util.write_file(dir..outfile, data, "w")
+  else
+    -- dump sprototype
+    for i,v in ipairs(trunk) do
+      local name = param.sproto_file[i]
+      local outcs = util.path_basename(name)..".cs"
+      local data = parse_ast2type(v.type, package, name)
+      util.write_file(dir..outcs, data, "w")
+    end
+
+    -- dump protocol
+    if build.protocol then
+      local data = parse_ast2protocol(build.protocol, package)
+      local outfile = package.."Protocol.cs"
+      util.write_file(dir..outfile, data, "w")
+    end
+  end
+end
+
+return main
