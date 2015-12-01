@@ -1,5 +1,5 @@
 # sproto_dump
-parse sproto file `.sproto` to binary file `.spb` or c# code `.cs`.
+parse sproto file `.sproto` to binary file `.spb` , c# code `.cs` or go code `.go`.
 
 usage is as follows:
 ```
@@ -8,6 +8,7 @@ usage: lua sprotodump.lua <option> <sproto_file1 sproto_file2 ...> [[<out_option
     option: 
         -cs              dump to cSharp code file
         -spb             dump to binary spb  file
+        -go              dump to go code file
 
     out_option:
         -d <dircetory>               dump to speciffic dircetory

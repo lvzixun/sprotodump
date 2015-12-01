@@ -11,6 +11,7 @@ usage: lua sprotodump.lua <option> <sproto_file1 sproto_file2 ...> [[<out_option
     option: 
         -cs              dump to cSharp code file
         -spb             dump to binary spb  file
+        -go              dump to go code file
 
     out_option:
         -d <dircetory>               dump to speciffic dircetory
