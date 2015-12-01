@@ -1,5 +1,3 @@
-local print_r = require "print_r"
-
 ------------- stream -------------
 local stream_mt = {}
 local function new_stream(...)
@@ -135,12 +133,5 @@ local function parse_param(...)
 end
 
 return parse_param
-
--- local v = parse_param(...)
--- if type(v)=="table" then
---   print_r(v)
--- else
---   print(v)
--- end
 
 
