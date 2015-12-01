@@ -1,4 +1,4 @@
-# sproto_dump
+# sproto dump
 parse sproto file `.sproto` to binary file `.spb` , c# code `.cs` or go code `.go`.
 
 usage is as follows:
