@@ -310,6 +310,10 @@ local function gen_trunk(trunk_list)
 		local ast = parser(text, name, namespace, build)
 		local protocol = ast.protocol
 		local type = ast.type
+		ast.info = {
+			filename = name,
+			namespace = namespace,
+		}
 
 		-- merge type
 		for k,v in pairs(type) do
