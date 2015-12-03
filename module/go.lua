@@ -155,7 +155,7 @@ local function write_struct(f, name, fields)
     f:write(fmt_struct_end)
 end
 
-local function write_protocol(f, name, protocol)
+local function write_protocol(f, name, basename, protocol)
     local request
     local key
     if protocol.request then
@@ -171,8 +171,9 @@ local function write_protocol(f, name, protocol)
     else
         key = key .. "a"
     end
-    method_name = canonical_name(name)
-    f:write(fmt_protocol[key]:format(protocol.tag, name, method_name, request, response))
+    fullname = string.format("%s.%s", basename, name)
+    method_name = string.format("%s.%s", canonical_name(basename), canonical_name(name))
+    f:write(fmt_protocol[key]:format(protocol.tag, fullname, method_name, request, response))
 end
 
 local function main(trunk, build, param)
@@ -183,10 +184,12 @@ local function main(trunk, build, param)
     for name, fields in pairs(trunk[1].type) do
         write_struct(f, name, fields)
     end
-    f:write(fmt_protocol_name:format(get_base_name(filename)))
+
+    local base_name = get_base_name(filename)
+    f:write(fmt_protocol_name:format(base_name))
     f:write(fmt_protocols_header)
     for name, protocol in pairs(trunk[1].protocol) do
-        write_protocol(f, name, protocol)
+        write_protocol(f, name, base_name, protocol)
     end
     f:write(fmt_protocols_end)
 
