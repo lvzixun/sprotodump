@@ -22,6 +22,10 @@ local fmt_struct_field = [[%s %s `sproto:"%s"`]]
 local fmt_struct_end = [[}
 ]]
 
+-- protocol name
+local fmt_protocol_name = [[var Name string = "%s"]]
+
+-- protocols
 local fmt_protocols_header = [[var Protocols []*sproto.Protocol = []*sproto.Protocol{]]
 local fmt_protocols_end = [[}]]
 
@@ -30,22 +34,26 @@ local fmt_protocol = {
     zz = [[&sproto.Protocol{
             Type: %d,
             Name: "%s",
+            MethodName: "%s",
             Request: reflect.TypeOf(&%s{}),
             Response: reflect.TypeOf(&%s{}),
         },]],
     za = [[&sproto.Protocol{
             Type: %d,
             Name: "%s",
+            MethodName: "%s",
             Request: reflect.TypeOf(&%s{}),
         },]],
     az = [[&sproto.Protocol{
             Type: %d,
             Name: "%s",
+            MethodName: "%s",
             Response: reflect.TypeOf(&%s{}),
         },]],
     aa = [[&sproto.Protocol{
             Type: %d,
             Name: "%s",
+            MethodName: "%s",
         },]]
 }
 
@@ -67,8 +75,12 @@ local function new_stream()
     return setmetatable(obj, stream)
 end
 
+local function get_base_name(filename)
+    return string.match(filename, "([%a_]+).sproto$")
+end
+
 local function get_package_name(filename)
-    local name = string.match(filename, "([%a_]+).sproto$")
+    local name = get_base_name(filename)
     return ("sproto_%s"):format(name)
 end
 
@@ -159,7 +171,8 @@ local function write_protocol(f, name, protocol)
     else
         key = key .. "a"
     end
-    f:write(fmt_protocol[key]:format(protocol.tag, name, request, response))
+    method_name = canonical_name(name)
+    f:write(fmt_protocol[key]:format(protocol.tag, name, method_name, request, response))
 end
 
 local function main(trunk, build, param)
@@ -170,16 +183,23 @@ local function main(trunk, build, param)
     for name, fields in pairs(trunk[1].type) do
         write_struct(f, name, fields)
     end
+    f:write(fmt_protocol_name:format(get_base_name(filename)))
     f:write(fmt_protocols_header)
     for name, protocol in pairs(trunk[1].protocol) do
         write_protocol(f, name, protocol)
     end
     f:write(fmt_protocols_end)
 
+    local content = f:dump()
+
     local outfile = param.outfile
+    if not outfile then
+        print(content)
+        return
+    end
+
     local dir = param.dircetory or ""
     local file = dir .. outfile
-    local content = f:dump()
     util.write_file(file, content, "w")
 end
 
