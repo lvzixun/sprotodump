@@ -9,7 +9,7 @@ usage: lua sprotodump.lua <option> <sproto_file1 sproto_file2 ...> [[<out_option
         -cs              dump to cSharp code file
         -spb             dump to binary spb  file
         -go              dump to go code file
-
+        -md              dump to markdown file
     out_option:
         -d <dircetory>               dump to speciffic dircetory
         -o <file>                    dump to speciffic file
