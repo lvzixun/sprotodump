@@ -78,7 +78,11 @@ local function packfield(f)
   table.insert(strtbl, "\0\0")  -- name (tag = 0, ref an object)
   if f.buildin then
     table.insert(strtbl, packvalue(f.buildin))  -- buildin (tag = 1)
-    table.insert(strtbl, "\1\0")  -- skip (tag = 2)
+    if f.decimal then
+        table.insert(strtbl, packvalue(f.decimal))  -- f.buildin must be decimal(3)
+    else
+        table.insert(strtbl, "\1\0")          -- skip (tag = 2)
+    end
     table.insert(strtbl, packvalue(f.tag))    -- tag (tag = 3)
   else
     table.insert(strtbl, "\1\0")  -- skip (tag = 1)
@@ -102,6 +106,7 @@ local function packtype(name, t, alltypes)
     tmp.array = f.array
     tmp.name = f.name
     tmp.tag = f.tag
+    tmp.decimal = f.decimal
 
     tmp.buildin = buildin_types[f.typename]
     local subtype
@@ -151,7 +156,6 @@ local function packproto(name, p, alltypes)
     if request == nil then
       error(string.format("Protocol %s request type %s not found", name, p.request))
     end
-    request = request.id
   end
   local tmp = {
     "\4\0", -- 4 fields
