@@ -106,7 +106,7 @@ local function packtype(name, t, alltypes)
     tmp.array = f.array
     tmp.name = f.name
     tmp.tag = f.tag
-    tmp.extra = f.extra
+    tmp.extra = f.decimal
 
     tmp.buildin = buildin_types[f.typename]
     if f.typename == "binary" then
