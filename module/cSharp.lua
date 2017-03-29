@@ -1,4 +1,3 @@
-local print_r = require "print_r"
 local parse_core = require "core"
 local buildin_types = parse_core.buildin_types
 
@@ -283,7 +282,7 @@ public class #class_name# : SprotoTypeBase {
 
   public #class_name# () : base(max_field_count) {}
 
-  public #class_name# (byte[] buffer) : basse(max_field_count, buffer) {
+  public #class_name# (byte[] buffer) : base(max_field_count, buffer) {
     this.decode ();
   }
 
@@ -518,6 +517,7 @@ local function parse_ast2type(ast, package, name)
   package = package or ""
   local type_class = gen_type_class(ast)
 
+
   local function dump_class_func()
     if not type_class or #type_class == 0 then return "" end
     local buffer = {}
@@ -563,7 +563,7 @@ local function parse_ast2all(ast, package, name)
   package = package or ""
   local protocol_class = gen_protocol_class(ast.protocol)
 
-  local type_source = parse_ast2type(ast, package, name)
+  local type_source = parse_ast2type(ast.type, package, name)
   local protocol_source = parse_protocol(protocol_class, package) 
   
   return type_source.."\n\n"..protocol_source
