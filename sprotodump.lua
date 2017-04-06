@@ -13,7 +13,7 @@ usage: lua sprotodump.lua <option> <sproto_file1 sproto_file2 ...> [[<out_option
         -spb             dump to binary spb  file
         -go              dump to go code file
         -md              dump to markdown file
-        -table           dump to lua table
+        -lua             dump to lua table
         
     out_option:
         -d <dircetory>               dump to speciffic dircetory
@@ -31,7 +31,7 @@ local module = {
   ["-spb"] = require "module.spb",
   ["-go"] = require "module.go",
   ["-md"] = require "module.md",
-  ["-table"] = require "module.table",
+  ["-lua"] = require "module.table",
 }
 
 
