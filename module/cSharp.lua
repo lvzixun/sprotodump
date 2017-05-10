@@ -179,15 +179,31 @@ local _class_type = {
   string = "string",
   integer = "Int64",
   boolean = "bool",
+  binary = "byte[]",
 }
-local function _2class_type(t, is_array, key)
-  t = _class_type[t] or t
+local function _typename2internal(field)
+  local t = field.typename
+  local decimal = field.decimal
+  if t == "integer" and decimal then
+    t = "double"
+  else
+    t = _class_type[t] or t
+  end
+  return t
+end
+
+local function _2class_type(field)
+  local t = _typename2internal(field)
+  local is_array = field.array
+  local key = field.key
+  local decimal = field.decimal
+
 
   if is_array and key then -- map
-    local tk = _class_type[key.typename]
+    local tk = _typename2internal(key)
     assert(tk , "Invalid map key.")
     return string.format("Dictionary<%s, %s>", tk, t)
-  elseif is_array and not key then -- arrat
+  elseif is_array and not key then -- array
     return "List<"..t..">"
   elseif not is_array and not key then -- element
     return t
@@ -201,15 +217,23 @@ local _write_func = {
   string = "write_string",
   integer = "write_integer",
   boolean = "write_boolean",
+  binary = "write_binary",
 }
 local function _write_encode_field(field, idx, stream, deep)
   local typename = field.typename
   local tag = field.tag
   local name = field.name
-  local func_name = _write_func[typename] or "write_obj"
+  local decimal = field.decimal
+  local func_name = nil
 
   stream:write(sformat("if (base.has_field.has_field (%d)) {", idx), deep)
-  stream:write(sformat("base.serialize.%s (this.%s, %d);", func_name, name, tag), deep+1)
+  if typename == "integer" and decimal then
+    decimal = 10^decimal
+    stream:write(sformat("base.serialize.write_decimal (this.%s, %s, %d);", name, decimal, tag), deep+1)
+  else
+    func_name = _write_func[typename] or "write_obj"
+    stream:write(sformat("base.serialize.%s (this.%s, %d);", func_name, name, tag), deep+1)
+  end
   stream:write("}\n", deep)
 end
 
@@ -218,6 +242,7 @@ local _read_func = {
   string = "read_string",
   integer = "read_integer",
   boolean = "read_boolean",
+  binary = "read_binary",
 }
 local function _write_read_field(field, stream, deep)
   local typename = field.typename
@@ -225,17 +250,26 @@ local function _write_read_field(field, stream, deep)
   local tag = field.tag
   local name = field.name
   local key = field.key
+  local decimal = field.decimal
 
-  local func_name = _read_func[typename]
+  local func_name= nil
+  if typename == "integer" and decimal then
+    decimal = 10^decimal
+    func_name ="read_decimal"
+  else
+    func_name = _read_func[typename]
+  end
 
   stream:write("case "..(tag)..":", deep)
   if func_name then
     if is_array then func_name = func_name.."_list" end
-    stream:write("this."..name.." = base.deserialize."..func_name.." ();", deep+1)
+    local s = string.format("this."..name.." = base.deserialize."..func_name.." (%s);",
+      decimal or "")
+    stream:write(s, deep+1)
 
   elseif key then
     assert(is_array)
-    local fmt = string.format("this.%s = base.deserialize.read_map<%s, %s>(v => v.%s);", name, _class_type[key.typename], typename, key.name)
+    local fmt = string.format("this.%s = base.deserialize.read_map<%s, %s>(v => v.%s);", name, _typename2internal(key), typename, key.name)
     stream:write(fmt, deep+1)
 
   else
@@ -272,7 +306,7 @@ local function dump_class(class_info, stream, deep)
     stream:write("", deep)
     for i=1,#sproto_type do
       local field = sproto_type[i]
-      local type = _2class_type(field.typename, field.array, field.key)
+      local type = _2class_type(field)
       local name = field.name
       local tag = field.tag
 
