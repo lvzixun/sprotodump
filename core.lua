@@ -50,7 +50,11 @@ end)
 
 local eof = P(-1)
 local newline = Cmt((P"\n" + "\r\n") * Carg(1) ,count_lines)
-local line_comment = "#" * (1 - newline) ^0 * (newline + eof)
+local note = C((1- (newline + P"]"))^1)
+local comment = (1 - newline) ^0 * (newline + eof)
+local line_comment = "#" * comment
+local field_note = P"#[" * note * P"]" * comment
+
 local blank = S" \t" + newline + line_comment
 local blank0 = blank ^ 0
 local blanks = blank ^ 1
@@ -84,10 +88,17 @@ local function namedpat(name, pat)
 	return Ct(type * meta * Cg(pat))
 end
 
+local function namedfield(field_patt)
+	local type = Cg(Cc("field"), "type")
+	local meta = Cg(metapatt(field, idx), "meta")
+	local note_patt = Cg(field_note, "note")
+	return Ct(type * meta * Cg(field_patt) * S"\t "^0 * note_patt^-1)
+end
+
 
 local typedef = P {
 	"ALL",
-	FIELD = namedpat("field", (name * blanks * tag * blank0 * ":" * blank0 * (C"*")^0 * typename * (mainkey + decimal)^0)),
+	FIELD = namedfield(name * blanks * tag * blank0 * ":" * blank0 * (C"*")^0 * typename * (mainkey + decimal)^0),
 	STRUCT = P"{" * multipat(V"FIELD" + V"TYPE") * P"}",
 	TYPE = namedpat("type", P"." * name * blank0 * V"STRUCT" ),
 	SUBPROTO = Ct((C"request" + C"response") * blanks * (typename + V"STRUCT")),
@@ -164,6 +175,7 @@ function convert.type(all, obj)
 			end
 			field.typename = fieldtype
 			field.meta = meta
+			field.note = f.note
 		else
 			assert(f.type == "type")	-- nest type
 			local nesttypename = typename .. "." .. f[1]
@@ -294,7 +306,6 @@ local function parser(text, filename, namespace, build)
 		local name = v[1]
 		v[1] = ex..name
 	end
-
 	return adjust(r, build, namespace)
 end
 
