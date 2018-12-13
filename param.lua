@@ -33,6 +33,14 @@ function stream_mt:is_opt()
 end
 
 
+function stream_mt:current()
+  return self[self.cur_idx]
+end
+
+function stream_mt:is_end()
+  return self.cur_idx > #self
+end
+
 ------------- parser -------------
 local function _parser_opt(stream, n)
   if stream:is_opt() then
@@ -65,18 +73,9 @@ local function _parser_opt(stream, n)
   end
 end
 
+
 local function parser_opt(stream)
   return _parser_opt(stream)
-end
-
-
-local function parser_outopt(stream)
-  return _parser_opt(stream, 1)
-end
-
-
-local function parser_namespace(stream)
-  return _parser_opt(stream, 0)
 end
 
 
@@ -112,23 +111,46 @@ local function parse_param(...)
 
   --- parser out option
   local out_option = {
-    ["-d"] = "dircetory",
-    ["-o"] = "outfile",
-    ["-p"] = "package",
+    ["-d"] = { "dircetory", 1},
+    ["-o"] = { "outfile", 1},
+    ["-p"] = { "package", 1},
+    ["-split"] = { "split", 1},
+    ["-crypt"] = { "crypt", 0},
+    ["-namespace"] = { "namespace", 0},
   }
-  while true do
-    result = parser_outopt(stream)
-    if not result then break end
-    local key = out_option[result.opt]
-    local value = result[1]
-    if not key then break end
-    ret[key] = value
+  while not stream:is_end() do
+    local k = stream:current()
+    local cfg = out_option[k]
+    if not cfg then
+      error("invalid option:%s"..tostring(k))
+    end
+    local name = cfg[1]
+    local vcount = cfg[2]
+    local result = _parser_opt(stream, vcount)
+    if not result then
+      local s = string.format("parser param %s(%s) is error", k, name)
+      error(s)
+    end
+    if vcount == 1 then
+      local v = result[1]
+      if not v then
+        local s = string.format("parser param %s(%s) is error, value is needed", k, name)
+        error(s) 
+      end
+      ret[name] = v
+    elseif vcount  == 0 then
+      ret[name] = true
+    elseif vcount > 0 then
+      local entry = {}
+      for i,v in ipairs(result) do
+        entry[i] = v
+      end
+      ret[name] = entry
+    else
+      assert(false)
+    end
   end
   
-  -- parser namespace
-  result = parser_namespace(stream)
-  ret.namespace = not not result
-
   return ret
 end
 
