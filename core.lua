@@ -116,7 +116,13 @@ function convert.protocol(all, obj, namespace)
 	local ex = namespace and namespace.."." or ""
 
 	for _, p in ipairs(obj[3]) do
-		assert(result[p[1]] == nil)
+		local pt = p[1]
+		if result[pt] ~= nil then
+			local meta_info = tostring(result.meta)
+			error(string.format("redefine %s in protocol %s"..meta_info,
+					highlight_tag(pt),
+					highlight_type(result.name)))
+		end
 		local typename = p[2]
 		local tt = type(typename)
 		if tt == "table" then
