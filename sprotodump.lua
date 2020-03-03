@@ -26,12 +26,18 @@ usage: lua sprotodump.lua <option> <sproto_file1 sproto_file2 ...> [[<out_option
 
 
 ------------------------------- module -------------------------------------
+local function load_module(f)
+  return function ()
+    return require(f)
+  end
+end
+
 local module = {
-  ["-cs"] = require "module.cSharp",
-  ["-spb"] = require "module.spb",
-  ["-go"] = require "module.go",
-  ["-md"] = require "module.md",
-  ["-lua"] = require "module.table",
+  ["-cs"] = load_module "module.cSharp",
+  ["-spb"] = load_module "module.spb",
+  ["-go"] = load_module "module.go",
+  ["-md"] = load_module "module.md",
+  ["-lua"] = load_module "module.table",
 }
 
 
@@ -52,7 +58,7 @@ local function _gen_trunk_list(sproto_file, namespace)
   return trunk_list
 end
 
-local m = module[param.dump_type]
+local m = module[param.dump_type]()
 local trunk_list = _gen_trunk_list(param.sproto_file, param.namespace)
 local trunk, build = parse_core.gen_trunk(trunk_list)
 m(trunk, build, param)
