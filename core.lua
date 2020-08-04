@@ -216,6 +216,7 @@ local buildin_types = {
 	boolean = 1,
 	string = 2,
 	binary = 2,
+	double = 3,
 }
 
 local function checktype(types, ptype, t)

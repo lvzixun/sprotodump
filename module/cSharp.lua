@@ -180,6 +180,7 @@ local _class_type = {
   integer = "Int64",
   boolean = "bool",
   binary = "byte[]",
+  double = "double",
 }
 local function _typename2internal(field)
   local t = field.typename
@@ -218,6 +219,7 @@ local _write_func = {
   integer = "write_integer",
   boolean = "write_boolean",
   binary = "write_binary",
+  double = "write_double",
 }
 local function _write_encode_field(field, idx, stream, deep)
   local typename = field.typename
@@ -243,6 +245,7 @@ local _read_func = {
   integer = "read_integer",
   boolean = "read_boolean",
   binary = "read_binary",
+  double = "read_double",
 }
 local function _write_read_field(field, stream, deep)
   local typename = field.typename
