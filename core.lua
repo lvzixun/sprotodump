@@ -64,7 +64,7 @@ local word = alpha * alnum ^ 0
 local name = C(word)
 local typename = C(word * ("." * word) ^ 0)
 local tag = R"09" ^ 1 / tonumber
-local mainkey = "(" * blank0 * name * blank0 * ")"
+local mainkey = "(" * blank0 * C((word ^ 0)) * blank0 * ")"
 local decimal = "(" * blank0 * C(tag) * blank0 * ")"
 
 local function multipat(pat)
@@ -98,7 +98,7 @@ end
 
 local typedef = P {
 	"ALL",
-	FIELD = namedfield(name * blanks * tag * blank0 * ":" * blank0 * (C"*")^0 * typename * (mainkey + decimal)^0),
+	FIELD = namedfield(name * blanks * tag * blank0 * ":" * blank0 * (C"*")^-1 * typename * (mainkey + decimal)^0),
 	STRUCT = P"{" * multipat(V"FIELD" + V"TYPE") * P"}",
 	TYPE = namedpat("type", P"." * name * blank0 * V"STRUCT" ),
 	SUBPROTO = Ct((C"request" + C"response") * blanks * (typename + V"STRUCT")),
@@ -139,6 +139,10 @@ function convert.protocol(all, obj, namespace)
 	end
 	return result
 end
+local map_keytypes = {
+	integer = true,
+	string = true,
+}
 
 function convert.type(all, obj)
 	local result = {}
@@ -283,7 +287,7 @@ local function flattypename(r)
 			end
 			f.typename = fullname
 
-			if f.array and f.key then
+			if f.array and f.key and f.key ~= "" then
 				local key = f.key
 				local reason = "Invalid map index: "..highlight_tag(key)..tostring(f.meta)
 				local vtype=r.type[fullname]

@@ -45,7 +45,8 @@ end
     type 2 : integer
     tag 3 : integer
     array 4 : boolean
-    key 5 : integer # If key exists, array must be true, and it's a map.
+    key 5 : integer # If key exists, array must be true
+    map 6 : boolean # Interpreted two fields struct as map when decoding
   }
   name 0 : string
   fields 1 : *field
@@ -68,7 +69,11 @@ local function packfield(f)
   local strtbl = {}
   if f.array then
     if f.key then
-      table.insert(strtbl, "\6\0")  -- 6 fields
+      if f.map then
+        table.insert(strtbl, "\7\0")  -- 7 fields
+      else
+        table.insert(strtbl, "\6\0")  -- 6 fields
+      end
     else
       table.insert(strtbl, "\5\0")  -- 5 fields
     end
@@ -91,9 +96,12 @@ local function packfield(f)
   end
   if f.array then
     table.insert(strtbl, packvalue(1))  -- array = true (tag = 4)
-  end
-  if f.key then
-    table.insert(strtbl, packvalue(f.key)) -- key tag (tag = 5)
+    if f.key then
+      table.insert(strtbl, packvalue(f.key)) -- key tag (tag = 5)
+      if f.map then
+        table.insert(strtbl, packvalue(f.map)) -- map tag (tag = 6)
+      end
+    end
   end
   table.insert(strtbl, packbytes(f.name)) -- external object (name)
   return packbytes(table.concat(strtbl))
@@ -119,8 +127,26 @@ local function packtype(name, t, alltypes)
     else
       tmp.type = nil
     end
+    tmp.map = nil
     if f.key then
-      tmp.key = subtype.fields[f.key.name]
+      assert(f.array)
+      if f.key == "" then
+        local min_t = math.maxinteger
+        local c = 0
+        for _, t in pairs(subtype.fields) do
+          c = c + 1
+          if t < min_t then
+            min_t = t
+        end
+        end
+        if c > 2 then
+          error(string.format("Invalid map definition: %s, more than two fields", tmp.name))
+        end
+        tmp.map = 1
+        tmp.key = min_t
+      else
+        tmp.key = subtype.fields[f.key]
+      end
       if not tmp.key then
         error("Invalid map index :" .. f.key.name)
       end
@@ -274,7 +300,7 @@ end
 local util = require "util"
 
 local function main(trunk, build, param)
-  local outfile = param.outfile or param.package and uitl.path_basename(param.package)..".spb" or "sproto.spb"
+  local outfile = param.outfile or param.package and util.path_basename(param.package)..".spb" or "sproto.spb"
   outfile = (param.dircetory or "")..outfile
   local data = parse_ast(build)
   util.write_file(outfile, data, "wb")
