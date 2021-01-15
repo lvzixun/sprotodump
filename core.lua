@@ -293,7 +293,7 @@ local function flattypename(r)
 				local vtype=r.type[fullname]
 				for _,v in ipairs(vtype) do
 					if v.name == key and buildin_types[v.typename] then
-						f.key=v
+						f.key=v.name
 						reason = false
 						break
 					end

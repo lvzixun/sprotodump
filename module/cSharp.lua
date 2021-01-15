@@ -272,7 +272,7 @@ local function _write_read_field(field, stream, deep)
 
   elseif key then
     assert(is_array)
-    local fmt = string.format("this.%s = base.deserialize.read_map<%s, %s>(v => v.%s);", name, _typename2internal(key), typename, key.name)
+    local fmt = string.format("this.%s = base.deserialize.read_map<%s, %s>(v => v.%s);", name, _typename2internal(key), typename, key)
     stream:write(fmt, deep+1)
 
   else

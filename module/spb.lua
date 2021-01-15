@@ -118,7 +118,7 @@ local function packtype(name, t, alltypes)
 
     tmp.buildin = buildin_types[f.typename]
     if f.typename == "binary" then
-        tmp.extra = 1     -- binary is sub type of string
+      tmp.extra = 1  -- binary is sub type of string
     end
     local subtype
     if not tmp.buildin then
@@ -131,25 +131,25 @@ local function packtype(name, t, alltypes)
     if f.key then
       assert(f.array)
       if f.key == "" then
-        local min_t = math.maxinteger
-        local c = 0
-        for _, t in pairs(subtype.fields) do
-          c = c + 1
-          if t < min_t then
-            min_t = t
-        end
-        end
-        if c > 2 then
-          error(string.format("Invalid map definition: %s, more than two fields", tmp.name))
-        end
         tmp.map = 1
-        tmp.key = min_t
-      else
-        tmp.key = subtype.fields[f.key]
+        local c = 0
+        local min_t = math.maxinteger
+        for n, t in pairs(subtype.fields) do
+          c = c + 1
+          if t.tag < min_t then
+            min_t = t.tag
+            f.key = n
+          end
+        end
+        if c ~= 2 then
+          error(string.format("Invalid map definition: %s, must only have two fields", tmp.name))
+        end
       end
-      if not tmp.key then
-        error("Invalid map index :" .. f.key.name)
+      local stfield = subtype.fields[f.key]
+      if not stfield or not stfield.buildin then
+        error("Invalid map index :" .. f.key)
       end
+      tmp.key = stfield.tag
     else
       tmp.key = nil
     end
@@ -159,14 +159,14 @@ local function packtype(name, t, alltypes)
   local data
   if #fields == 0 then
     data = {
-      "\1\0", -- 1 fields
-      "\0\0", -- name (id = 0, ref = 0)
+      "\1\0",  -- 1 fields
+      "\0\0",  -- name  (id = 0, ref = 0)
       packbytes(name),
     }
   else
     data = {
-      "\2\0", -- 2 fields
-      "\0\0", -- name (tag = 0, ref = 0)
+      "\2\0",  -- 2 fields
+      "\0\0",  -- name  (tag = 0, ref = 0)
       "\0\0", -- field[]  (tag = 1, ref = 1)
       packbytes(name),
       packbytes(table.concat(fields)),
@@ -177,32 +177,34 @@ local function packtype(name, t, alltypes)
 end
 
 local function packproto(name, p, alltypes)
---  if p.request == nil then
---    error(string.format("Protocol %s need request", name))
---  end
   if p.request then
     local request = alltypes[p.request]
     if request == nil then
       error(string.format("Protocol %s request type %s not found", name, p.request))
     end
+    request = request.id
   end
   local tmp = {
-    "\4\0", -- 4 fields
-    "\0\0", -- name (id=0, ref=0)
-    packvalue(p.tag), -- tag (tag=1)
+    "\4\0",	-- 4 fields
+    "\0\0",  -- name (id=0, ref=0)
+    packvalue(p.tag),  -- tag (tag=1)
   }
-  if p.request == nil and p.response == nil then
-    tmp[1] = "\2\0"
+  if p.request == nil and p.response == nil and p.confirm == nil then
+    tmp[1] = "\2\0"  -- only two fields
   else
     if p.request then
       table.insert(tmp, packvalue(alltypes[p.request].id)) -- request typename (tag=2)
     else
-      table.insert(tmp, "\1\0")
+      table.insert(tmp, "\1\0")  -- skip this field (request)
     end
     if p.response then
       table.insert(tmp, packvalue(alltypes[p.response].id)) -- request typename (tag=3)
+    elseif p.confirm then
+      tmp[1] = "\5\0"  -- add confirm field
+      table.insert(tmp, "\1\0")  -- skip this field (response)
+      table.insert(tmp, packvalue(1))  -- confirm = true
     else
-      tmp[1] = "\3\0"
+      tmp[1] = "\3\0"  -- only three fields
     end
   end
 
@@ -225,9 +227,10 @@ local function packgroup(t,p)
   for idx, name in ipairs(alltypes) do
     local fields = {}
     for _, type_fields in ipairs(t[name]) do
-      if buildin_types[type_fields.typename] then
-        fields[type_fields.name] = type_fields.tag
-      end
+      fields[type_fields.name] = {
+        tag = type_fields.tag,
+        buildin = buildin_types[type_fields.typename]
+      }
     end
     alltypes[name] = { id = idx - 1, fields = fields }
   end
