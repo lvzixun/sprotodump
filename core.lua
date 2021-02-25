@@ -287,18 +287,41 @@ local function flattypename(r)
 			end
 			f.typename = fullname
 
-			if f.array and f.key and f.key ~= "" then
+			if f.array and f.key then
 				local key = f.key
-				local reason = "Invalid map index: "..highlight_tag(key)..tostring(f.meta)
-				local vtype=r.type[fullname]
-				for _,v in ipairs(vtype) do
-					if v.name == key and buildin_types[v.typename] then
-						f.key=v.name
-						reason = false
-						break
+				local vtype = r.type[fullname]
+				-- map 字段不带有key，将会校验对应的map类型是否满足2个field和key类型
+				if key == "" then
+					local c = #vtype
+					-- 校验map字段的类型必然是有2个field
+					if c ~= 2 then
+						error(string.format("Invalid map type: %s, must only have two fields %s",
+							highlight_type(fullname), tostring(f.meta)))
 					end
+					local map_key = vtype[1]
+					local map_value = vtype[2]
+					if map_key.tag > map_value.tag then
+						map_key, map_value = map_value, map_key
+					end
+					-- key类型不合法
+					if not buildin_types[map_key.typename] then
+						error(string.format("Invalid map type: %s invalid key type %s",
+							highlight_type(fullname), tostring(f.meta)))
+					end
+					f.map = true -- 兼容spb
+					f.map_keyname = map_key.name
+					f.map_valuename = map_value.name
+				else
+					local reason = "Invalid map index: "..highlight_tag(key)..tostring(f.meta)
+					for _,v in ipairs(vtype) do
+						if v.name == key and buildin_types[v.typename] then
+							f.key=v.name
+							reason = false
+							break
+						end
+					end
+					if reason then error(reason) end
 				end
-				if reason then error(reason) end
 			end
 		end
 	end
