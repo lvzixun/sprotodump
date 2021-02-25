@@ -201,8 +201,8 @@ local function _2class_type(field)
 
 
   if is_array and key then -- map
-    local tk = _typename2internal(key)
-    assert(tk , "Invalid map key.")
+    local tk = _typename2internal(field.map_keyfield)
+    assert(tk, "Invalid map key.")
     return string.format("Dictionary<%s, %s>", tk, t)
   elseif is_array and not key then -- array
     return "List<"..t..">"
@@ -272,7 +272,11 @@ local function _write_read_field(field, stream, deep)
 
   elseif key then
     assert(is_array)
-    local fmt = string.format("this.%s = base.deserialize.read_map<%s, %s>(v => v.%s);", name, _typename2internal(key), typename, key)
+    local map_keyfield = field.map_keyfield
+    local fmt = string.format("this.%s = base.deserialize.read_map<%s, %s>(v => v.%s);",
+      name,
+      _typename2internal(map_keyfield), typename,
+      map_keyfield.name)
     stream:write(fmt, deep+1)
 
   else

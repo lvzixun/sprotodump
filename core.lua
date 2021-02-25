@@ -309,13 +309,15 @@ local function flattypename(r)
 							highlight_type(fullname), tostring(f.meta)))
 					end
 					f.map = true -- 兼容spb
-					f.map_keyname = map_key.name
-					f.map_valuename = map_value.name
+					f.map_keyfield = map_key
+					f.map_valuefield = map_value
 				else
 					local reason = "Invalid map index: "..highlight_tag(key)..tostring(f.meta)
 					for _,v in ipairs(vtype) do
 						if v.name == key and buildin_types[v.typename] then
 							f.key=v.name
+							f.map_keyfield = v
+							f.map_valuefield = f
 							reason = false
 							break
 						end
