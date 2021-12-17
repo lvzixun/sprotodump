@@ -247,19 +247,47 @@ local function write_protocol(f, name, basename, protocol)
     f:write(fmt_protocol[key]:format(protocol.tag, fullname, method_name, request, response))
 end
 
+local function sort_by_meta(set)
+    local arr = {}
+    for name, obj in pairs(set) do
+        table.insert(arr, {name=name, obj=obj, meta=obj.meta})
+    end
+    table.sort(arr, function(a, b)
+        if a.meta.file ~= b.meta.file then
+            return a.meta.file < b.meta.file
+        end
+        if a.meta.line ~= b.meta.file then
+            return a.meta.line < b.meta.line
+        end
+        -- order可能缺失，只存在于protocol的request和response结构体
+        if a.meta.order and b.meta.order then
+            return a.meta.order < b.meta.order
+        end
+        return false
+    end)
+    return arr
+end
+
 local function main(trunk, build, param)
     assert(#param.sproto_file==1, "one sproto file one package")
     local f = new_stream()
     local filename = param.sproto_file[1]
     f:write(get_file_header(filename, param))
-    for name, fields in pairs(trunk[1].type) do
+
+    local sorted_structs = sort_by_meta(trunk[1].type)
+    for _, obj in pairs(sorted_structs) do
+        local name = obj.name
+        local fields = obj.obj
         write_struct(f, name, fields)
     end
 
     local base_name = get_base_name(filename)
     f:write(fmt_protocol_name:format(base_name))
     f:write(fmt_protocols_header)
-    for name, protocol in pairs(trunk[1].protocol) do
+    local sorted_protocols = sort_by_meta(trunk[1].protocol)
+    for _, obj in pairs(sorted_protocols) do
+        local name = obj.name
+        local protocol = obj.obj
         write_protocol(f, name, base_name, protocol)
     end
     f:write(fmt_protocols_end)
