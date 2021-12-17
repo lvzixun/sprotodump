@@ -15,6 +15,9 @@ import (
 
     "github.com/xjdrew/gosproto"
 )
+
+// avoids "imported but not used"
+var _ reflect.Type
 ]]
 
 local fmt_struct_header = [[type %s struct {]]
@@ -84,8 +87,8 @@ local function get_package_name(filename)
     return ("sproto_%s"):format(name)
 end
 
-local function get_file_header(filename)
-    local package = get_package_name(filename)
+local function get_file_header(filename, param)
+    local package = param.package or get_package_name(filename)
     return fmt_file_header:format(filename, package, package)
 end
 
@@ -93,32 +96,80 @@ local function canonical_name(name)
     return name:gsub("%f[^\0%_%.]%l",string.upper):gsub("[%_%.]","")
 end
 
+local function map_item_field_name(field)
+    return ("mapItem%s"):format(canonical_name(field.name))
+end
+
 local type_map = {
     string = "*string",
-    integer = "*int",
+    integer = "*int64",
     boolean = "*bool",
+    double = "*float64",
+    binary = "[]byte",
 }
 
 local array_type_map = {
     string = "[]string",
-    integer = "[]int",
+    integer = "[]int64",
     boolean = "[]bool",
+    double = "[]float64",
+    binary = "[][]byte",
 }
 
-local function get_type_string(typename, array)
+local key_type_map = {
+    string = "string",
+    integer = "int64",
+    boolean = "bool",
+    double = "float64",
+    -- go的map不支持以slice做key，所以这里不支持binary类型
+}
+
+local function get_type_string(field)
     local target
-    if array then
-        target = array_type_map[typename]
+    if field.array then
+        target = array_type_map[field.typename]
         if not target then
-            target = string.format("[]*%s", canonical_name(typename))
+            if field.map or (field.key and field.key ~= "") then  -- map
+                -- map key一定是基础类型
+                local key_type = key_type_map[field.map_keyfield.typename]
+                assert(key_type, field.typename .. ":" .. field.map_keyfield.typename)
+
+                local value_type = false
+                if field.key and field.key ~= "" then  -- array with index key
+                    -- map_valuefield一定是struct
+                    assert(not type_map[field.map_valuefield.typename], field.map_valuefield.typename)
+                    value_type = string.format("*%s", canonical_name(field.map_valuefield.typename))
+                else
+                    -- map_valuefield 可能是builtin类型，也可能是struct
+                    value_type = get_type_string(field.map_valuefield)
+
+                    -- 无法处理嵌套递归的类型，比如：
+                    --[[
+                        .Nested {
+                            id 1 : int
+                            nested 2 : *Nested()
+                        }
+                        .Struct {
+                            m 1 : *Nested()
+                        }
+                    ]]
+                    -- 这里 Struct.m 转换成go类型就是 map[int]map[int]map[int]... 无限递归下去
+                    -- sprotodump也会因此 stack overflow
+                    -- 一个可能的解决方法是定义成 map[int]interface{} ，动态创建嵌套的map
+                end
+
+                target = string.format("map[%s]%s", key_type, value_type)
+            else  -- array
+                target = string.format("[]*%s", canonical_name(field.typename))
+            end
         end
     else
-        target = type_map[typename]
+        target = type_map[field.typename]
         if not target then
-            target = string.format("*%s", canonical_name(typename))
+            target = string.format("*%s", canonical_name(field.typename))
         end
     end
-    return assert(target, typename .. ":" .. tostring(array))
+    return assert(target, field.typename .. ":" .. tostring(field.array))
 end
 
 local function get_meta_string(field)
@@ -135,15 +186,32 @@ local function get_meta_string(field)
         table.insert(meta, "array")
     end
 
-    table.insert(meta, ("name=%s"):format(field.name))
+    if field.key and field.key ~= "" then -- array with index key
+        table.insert(meta, ("key=%d"):format(field.map_keyfield.tag))
+    elseif field.map then -- map
+        table.insert(meta, ("key=%d"):format(field.map_keyfield.tag))
+        table.insert(meta, ("value=%d"):format(field.map_valuefield.tag))
+        table.insert(meta, ("subtype=%s"):format(map_item_field_name(field)))
+    end
+
+    -- table.insert(meta, ("name=%s"):format(field.name))
     return table.concat(meta, ",")
 end
 
 local function write_struct_field(f, field)
     local name = canonical_name(field.name)
-    local typename = get_type_string(field.typename, field.array)
+    local typename = get_type_string(field)
     local meta = get_meta_string(field)
     f:write(fmt_struct_field:format(name, typename, meta))
+end
+
+local function write_map_item_field(f, field)
+    if not field.map then
+        return
+    end
+    local name = map_item_field_name(field)
+    local typename = canonical_name(field.typename)
+    f:write(("%s *%s"):format(name, typename))
 end
 
 local function write_struct(f, name, fields)
@@ -151,6 +219,9 @@ local function write_struct(f, name, fields)
     f:write(fmt_struct_header:format(name))
     for _, field in ipairs(fields) do
         write_struct_field(f, field)
+    end
+    for _, field in ipairs(fields) do
+        write_map_item_field(f, field)
     end
     f:write(fmt_struct_end)
 end
@@ -180,7 +251,7 @@ local function main(trunk, build, param)
     assert(#param.sproto_file==1, "one sproto file one package")
     local f = new_stream()
     local filename = param.sproto_file[1]
-    f:write(get_file_header(filename))
+    f:write(get_file_header(filename, param))
     for name, fields in pairs(trunk[1].type) do
         write_struct(f, name, fields)
     end
