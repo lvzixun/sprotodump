@@ -115,7 +115,7 @@ function convert.protocol(all, obj, namespace)
 	local result = { tag = obj[2], meta=obj.meta, name = obj[1]}
 	local ex = namespace and namespace.."." or ""
 
-	for _, p in ipairs(obj[3]) do
+	for order, p in ipairs(obj[3]) do
 		local pt = p[1]
 		if result[pt] ~= nil then
 			local meta_info = tostring(result.meta)
@@ -127,8 +127,9 @@ function convert.protocol(all, obj, namespace)
 		local tt = type(typename)
 		if tt == "table" then
 			local struct = typename
+			local meta = {file=obj.meta.file, line=obj.meta.line, order=order}
 			typename = obj[1] .. "." .. p[1]
-			all.type[typename] = convert.type(all, { typename, struct })
+			all.type[typename] = convert.type(all, { typename, struct, meta=meta })
 		elseif tt == "string" then
 			local test_name = ex..typename
 			typename = all.type[test_name] and test_name or typename
@@ -197,6 +198,7 @@ function convert.type(all, obj)
 		end
 	end
 	table.sort(result, function(a,b) return a.tag < b.tag end)
+	result.meta = obj.meta
 	return result
 end
 
