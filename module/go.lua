@@ -21,7 +21,7 @@ var _ reflect.Type
 ]]
 
 local fmt_struct_header = [[type %s struct {]]
-local fmt_struct_field = [[%s %s `sproto:"%s"`]]
+local fmt_struct_field = [[%s %s `%s`]]
 local fmt_struct_end = [[}
 ]]
 
@@ -172,7 +172,7 @@ local function get_type_string(field)
     return assert(target, field.typename .. ":" .. tostring(field.array))
 end
 
-local function get_meta_string(field)
+local function get_sproto_meta_string(field)
     local meta = {}
     if type_map[field.typename] then
         table.insert(meta, field.typename)
@@ -194,15 +194,20 @@ local function get_meta_string(field)
         table.insert(meta, ("subtype=%s"):format(map_item_field_name(field)))
     end
 
-    -- table.insert(meta, ("name=%s"):format(field.name))
-    return table.concat(meta, ",")
+    return ("sproto:\"%s\""):format( table.concat(meta, ",") )
+end
+
+local function get_json_meta_string(field)
+    local meta = {}
+    table.insert(meta, field.name)
+    return ("json:\"%s\""):format( table.concat(meta, ",") )
 end
 
 local function write_struct_field(f, field)
     local name = canonical_name(field.name)
     local typename = get_type_string(field)
-    local meta = get_meta_string(field)
-    f:write(fmt_struct_field:format(name, typename, meta))
+    local tags = table.concat({get_sproto_meta_string(field), get_json_meta_string(field)}, " ")
+    f:write(fmt_struct_field:format(name, typename, tags))
 end
 
 local function write_map_item_field(f, field)
@@ -211,7 +216,8 @@ local function write_map_item_field(f, field)
     end
     local name = map_item_field_name(field)
     local typename = canonical_name(field.typename)
-    f:write(("%s *%s"):format(name, typename))
+    local tags = "json:\"-\""
+    f:write(("%s *%s `%s`"):format(name, typename, tags))
 end
 
 local function write_struct(f, name, fields)
