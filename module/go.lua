@@ -233,24 +233,26 @@ local function write_struct(f, name, fields)
 end
 
 local function write_protocol(f, name, basename, protocol)
-    local request
+    local fullname = string.format("%s.%s", basename, name)
+    local method_name = string.format("%s.%s", canonical_name(basename), canonical_name(name))
+    local params = {protocol.tag, fullname, method_name}
     local key
     if protocol.request then
+        local request = canonical_name(protocol.request)
+        table.insert(params, request)
         key = "z"
-        request = canonical_name(protocol.request)
     else
         key = "a"
     end
 
     if protocol.response then
-        response = canonical_name(protocol.response)
+        local response = canonical_name(protocol.response)
+        table.insert(params, response)
         key = key .. "z"
     else
         key = key .. "a"
     end
-    fullname = string.format("%s.%s", basename, name)
-    method_name = string.format("%s.%s", canonical_name(basename), canonical_name(name))
-    f:write(fmt_protocol[key]:format(protocol.tag, fullname, method_name, request, response))
+    f:write(fmt_protocol[key]:format(table.unpack(params)))
 end
 
 local function sort_by_meta(set)
