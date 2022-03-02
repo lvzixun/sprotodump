@@ -288,16 +288,35 @@ local function _write_read_field(field, stream, deep)
   stream:write("break;", deep+1)
 end
 
+local function search_rpc_flag(classi,pclassi)
+   if not classi.sproto_type or classi.class_name ~= 'request' then return '' end
+   local req_name = pclassi.class_name .. '.request'
+   local res_name = pclassi.class_name .. '.response'
+   local req,res
+   for _,c in ipairs(pclassi.internal_class) do
+        if c.type_name == req_name then
+          req = c
+        elseif c.type_name == res_name then
+          res = c
+        end
+   end
+   if req and res then
+      return string.format(',ISprotoRequest<Protocol.%s,%s>',pclassi.class_name,res.class_name)
+   elseif req then
+      return ',ISprotoRequest<Protocol.'..classi.class_name..'>'
+   else
+      return ''
+   end
+end
 
-
-local function dump_class(class_info, stream, deep)
+local function dump_class(class_info, stream, deep,parent)
   local class_name = class_info.class_name
   local sproto_type = class_info.sproto_type
   local internal_class = class_info.internal_class
   local max_field_count = class_info.max_field_count
 
   if sproto_type then
-    stream:write("public class "..class_name.." : SprotoTypeBase {", deep)
+    stream:write("public class "..class_name.." : SprotoTypeBase "..search_rpc_flag(class_info,parent).."{", deep)
     
     -- max_field_count
     deep = deep + 1;
@@ -375,7 +394,7 @@ local function dump_class(class_info, stream, deep)
     -- internal class
     stream:write("", deep)
     for i=1,#internal_class do
-      dump_class(internal_class[i], stream, deep+1)
+      dump_class(internal_class[i], stream, deep+1,class_info)
     end
     stream:write("}\n\n", deep)
   end
@@ -476,6 +495,14 @@ using Sproto;
 using System.Collections.Generic;
 ]]
 
+local sproto_request_interface = [[
+namespace Sproto
+{
+    public interface ISprotoRequest<TProtocol> { }
+    public interface ISprotoRequest<TProtocol, TResponse> where TResponse : SprotoTypeBase { }
+}
+]]
+
 
 local function parse_ast2type(ast, package, name)
   package = package or ""
@@ -485,6 +512,7 @@ local function parse_ast2type(ast, package, name)
   stream:write(header)
   stream:write([[// source: ]]..(name or "input").."\n")
   stream:write(using)
+  stream:write(sproto_request_interface)
 
   -- parse type
   parse_type(type_class, stream, package)
@@ -517,6 +545,7 @@ local function parse_ast2all(ast, package, name)
   stream:write(header)
   stream:write([[// source: ]]..(name or "input").."\n")
   stream:write(using)
+  stream:write(sproto_request_interface)
 
   parse_type(type_class, stream, package)
   parse_protocol(protocol_class, stream, package)
