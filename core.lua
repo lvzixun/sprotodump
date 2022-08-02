@@ -68,7 +68,7 @@ local mainkey = "(" * blank0 * C((word ^ 0)) * blank0 * ")"
 local decimal = "(" * blank0 * C(tag) * blank0 * ")"
 
 local function multipat(pat)
-	return Ct(blank0 * (pat * blank0) ^ 0)
+	return Ct(blank0 * (pat * (blank - P"#[") ^0) ^ 0)
 end
 
 local function metapatt(name, idx)
@@ -85,7 +85,8 @@ end
 local function namedpat(name, pat)
 	local type = Cg(Cc(name), "type")
 	local meta = Cg(metapatt(name, idx), "meta")
-	return Ct(type * meta * Cg(pat))
+	local note_patt = Cg(field_note, "note")
+	return Ct(type * meta * note_patt^-1 * Cg(pat))
 end
 
 local function namedfield(field_patt)
@@ -112,7 +113,7 @@ local proto = blank0 * typedef * blank0
 local convert = {}
 
 function convert.protocol(all, obj, namespace)
-	local result = { tag = obj[2], meta=obj.meta, name = obj[1]}
+	local result = { tag = obj[2], meta=obj.meta, name = obj[1], note = obj.note}
 	local ex = namespace and namespace.."." or ""
 
 	for order, p in ipairs(obj[3]) do
