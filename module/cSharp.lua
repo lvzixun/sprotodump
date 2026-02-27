@@ -231,10 +231,10 @@ local function _write_encode_field(field, idx, stream, deep)
   stream:write(sformat("if (base.has_field.has_field (%d)) {", idx), deep)
   if typename == "integer" and decimal then
     decimal = 10^decimal
-    stream:write(sformat("base.serialize.write_decimal (this.%s, %s, %d);", name, decimal, tag), deep+1)
+    stream:write(sformat("base.serialize.write_decimal (this.@%s, %s, %d);", name, decimal, tag), deep+1)
   else
     func_name = _write_func[typename] or "write_obj"
-    stream:write(sformat("base.serialize.%s (this.%s, %d);", func_name, name, tag), deep+1)
+    stream:write(sformat("base.serialize.%s (this.@%s, %d);", func_name, name, tag), deep+1)
   end
   stream:write("}\n", deep)
 end
@@ -266,14 +266,14 @@ local function _write_read_field(field, stream, deep)
   stream:write("case "..(tag)..":", deep)
   if func_name then
     if is_array then func_name = func_name.."_list" end
-    local s = string.format("this."..name.." = base.deserialize."..func_name.." (%s);",
+    local s = string.format("this.@"..name.." = base.deserialize."..func_name.." (%s);",
       decimal or "")
     stream:write(s, deep+1)
 
   elseif key then
     assert(is_array)
     local map_keyfield = field.map_keyfield
-    local fmt = string.format("this.%s = base.deserialize.read_map<%s, %s>(v => v.%s);",
+    local fmt = string.format("this.@%s = base.deserialize.read_map<%s, %s>(v => v.@%s);",
       name,
       _typename2internal(map_keyfield), typename,
       map_keyfield.name)
@@ -282,7 +282,7 @@ local function _write_read_field(field, stream, deep)
   else
     func_name = "read_obj"
     if is_array then func_name = func_name.."_list" end
-    stream:write("this."..name.." = base.deserialize."..func_name.."<"..typename..">".." ();", deep+1)
+    stream:write("this.@"..name.." = base.deserialize."..func_name.."<"..typename..">".." ();", deep+1)
 
   end
   stream:write("break;", deep+1)
@@ -318,7 +318,7 @@ local function dump_class(class_info, stream, deep)
       local tag = field.tag
 
       stream:write(sformat("private %s _%s; // tag %d", type, name, tag), deep)
-      stream:write(sformat("public %s %s {", type, name), deep)
+      stream:write(sformat("public %s @%s {", type, name), deep)
         stream:write(sformat("get { return _%s; }", name), deep+1)
         stream:write(sformat("set { base.has_field.set_field (%d, true); _%s = value; }", i-1, name), deep+1)
       stream:write("}", deep)
