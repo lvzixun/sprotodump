@@ -15,6 +15,29 @@ local function upper_head(s)
   return c..string.sub(s, 2)
 end
 
+-- C# reserved keywords that must be prefixed with @ when used as identifiers
+-- https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/
+local _csharp_keywords = {}
+for _,kw in ipairs({
+  "abstract","as","base","bool","break","byte","case","catch","char",
+  "checked","class","const","continue","decimal","default","delegate",
+  "do","double","else","enum","event","explicit","extern","false",
+  "finally","fixed","float","for","foreach","goto","if","implicit",
+  "in","int","interface","internal","is","lock","long","namespace",
+  "new","null","object","operator","out","override","params","private",
+  "protected","public","readonly","ref","return","sbyte","sealed",
+  "short","sizeof","stackalloc","static","string","struct","switch",
+  "this","throw","true","try","typeof","uint","ulong","unchecked",
+  "unsafe","ushort","using","virtual","void","volatile","while",
+}) do _csharp_keywords[kw] = true end
+
+local function safe_name(name)
+  if _csharp_keywords[name] then
+    return "@"..name
+  end
+  return name
+end
+
 local function create_stream()
   return setmetatable({}, mt)
 end
@@ -224,7 +247,7 @@ local _write_func = {
 local function _write_encode_field(field, idx, stream, deep)
   local typename = field.typename
   local tag = field.tag
-  local name = field.name
+  local name = safe_name(field.name)
   local decimal = field.decimal
   local func_name = nil
 
@@ -251,7 +274,7 @@ local function _write_read_field(field, stream, deep)
   local typename = field.typename
   local is_array = field.array
   local tag = field.tag
-  local name = field.name
+  local name = safe_name(field.name)
   local key = field.key
   local decimal = field.decimal
 
@@ -276,7 +299,7 @@ local function _write_read_field(field, stream, deep)
     local fmt = string.format("this.%s = base.deserialize.read_map<%s, %s>(v => v.%s);",
       name,
       _typename2internal(map_keyfield), typename,
-      map_keyfield.name)
+      safe_name(map_keyfield.name))
     stream:write(fmt, deep+1)
 
   else
@@ -314,16 +337,17 @@ local function dump_class(class_info, stream, deep)
     for i=1,#sproto_type do
       local field = sproto_type[i]
       local type = _2class_type(field)
-      local name = field.name
+      local raw_name = field.name
+      local name = safe_name(raw_name)
       local tag = field.tag
 
-      stream:write(sformat("private %s _%s; // tag %d", type, name, tag), deep)
+      stream:write(sformat("private %s _%s; // tag %d", type, raw_name, tag), deep)
       stream:write(sformat("public %s %s {", type, name), deep)
-        stream:write(sformat("get { return _%s; }", name), deep+1)
-        stream:write(sformat("set { base.has_field.set_field (%d, true); _%s = value; }", i-1, name), deep+1)
+        stream:write(sformat("get { return _%s; }", raw_name), deep+1)
+        stream:write(sformat("set { base.has_field.set_field (%d, true); _%s = value; }", i-1, raw_name), deep+1)
       stream:write("}", deep)
 
-      stream:write("public bool Has"..upper_head(name).." {", deep)
+      stream:write("public bool Has"..upper_head(raw_name).." {", deep)
         stream:write(sformat("get { return base.has_field.has_field (%d); }", i-1), deep+1)
       stream:write("}\n", deep)
     end
